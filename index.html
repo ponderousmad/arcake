@@ -17,6 +17,7 @@
         <script type="text/javascript" src="blitblort/src/improc.js"></script>
         <script type="text/javascript" src="blitblort/src/blump.js"></script>
         <script type="text/javascript" src="blitblort/src/main.js"></script>
+        <script type="text/javascript" src="src/arcake.js"></script>
     </head>
     <body>
         <canvas id="canvas3D" width="400" height="400">
@@ -35,15 +36,6 @@
                 </div>
             </form>
         </div>
-        <script type="text/javascript">
-            window.onload = function(e) {
-                MAIN.start(document.getElementById("canvas3D"), new BLUMP.BlumpTest("safe"));
-                var failed = MAIN.runTestSuites();
-                if (failed === 0) {
-                    console.log("All Tests Passed!");
-                }
-            };
-        </script>
         <script id="vertex-test" type="x-shader/x-vertex">
             attribute vec3 aPos;
             attribute vec3 aNormal;
