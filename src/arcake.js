@@ -73,14 +73,10 @@ var ARCAKE = (function () {
     };
 
     View.prototype.loadBlump = function (image) {
-        this.atlas = new WGL.TextureAtlas(image.width, image.height / 2, 1);
-        var parameters = {
-            pixelSize: 0.01,
-            alignX: 0.5,
-            alignY: 0.5,
-            useCalibration: false
-        };
-        this.meshes.push(BLUMP.imageToMesh(image, this.atlas, parameters));
+        var atlas = new WGL.TextureAtlas(image.width, image.height / 2, 1),
+            builder = BLUMP.setupForPaired(image, 0.01, atlas),
+            depths = builder.depthFromPaired(image, false);
+        this.meshes.push(builder.constructSurface(depths, atlas.texture()));
     };
 
     View.prototype.eyePosition = function () {
@@ -152,7 +148,6 @@ var ARCAKE = (function () {
             e.preventDefault = true;
             return false;
         });
-
         MAIN.runTestSuites();
     };
 
