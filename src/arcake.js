@@ -12,9 +12,9 @@ var ARCAKE = (function () {
         this.meshes = [];
         this.program = null;
         this.angle = 0;
-        this.distance = 2;
-        this.eyeHeight = 2;
-        this.targetHeight = -1;
+        this.distance = 2.5;
+        this.eyeHeight = 1;
+        this.targetHeight = -0.5;
         this.viewport = viewport ? viewport : "canvas";
         this.room = null;
         this.prevSpot = null;
@@ -72,17 +72,61 @@ var ARCAKE = (function () {
         }
     };
 
+    function addLayer(base, thickness, width, height, smoothing) {
+        var depths = new Float32Array(width * height),
+            sum = 0,
+            min = Number.POSITIVE_INFINITY,
+            max = Number.NEGATIVE_INFINITY;
+
+        base.forEach(function(v) {
+            sum += v;
+            min = Math.min(v, min);
+            max = Math.max(v, max);
+        });
+        var average = sum / base.length,
+            slackFactor =  smoothing / (max - min);
+
+        for (var y = 0; y < height; ++y) {
+            for (var x = 0; x < width; ++x) {
+                var index = x + y * width,
+                    prev = base[index],
+                    slack = prev - average,
+                    newDepth = prev + thickness - slack * slackFactor;
+                depths[index] = Math.max(prev, newDepth);
+            }
+        }
+        return depths;
+    }
+
     View.prototype.loadBlump = function () {
         var image = this.testBlump,
+            builder = BLUMP.setupForPaired(image, 0.01),
+            depths = builder.depthFromPaired(image, false),
+            iceDepths = addLayer(depths, 0.2, builder.width, builder.height, 0.1),
+            snowDepths = addLayer(iceDepths, 0.1, builder.width, builder.height, 0.2),
             surfaceAtlas = new WGL.TextureAtlas(image.width, image.height / 2, 1),
-            builder = BLUMP.setupForPaired(image, 0.01, surfaceAtlas),
-            depths = builder.depthFromPaired(image, false);
+            surfaceCoords = surfaceAtlas.add(image, 0, 0, builder.width, builder.height);
+        builder.setupTextureSurface(surfaceCoords);
         this.meshes.push(builder.constructSurface(depths, surfaceAtlas.texture()));
 
         var wallAtlas = new WGL.TextureAtlas(this.rockWall.width, this.rockWall.height, 1);
-        builder.defaultBottom = -1;
+        builder.defaultBottom = -0.5;
         builder.setupTextureWalls(wallAtlas.add(this.rockWall));
         this.meshes.push(builder.constructWall(null, depths, wallAtlas.texture()));
+
+        builder.color = [1, 1, 1, 0.8];
+        builder.setupTextureSurface(surfaceCoords);
+        this.meshes.push(builder.constructSurface(iceDepths, surfaceAtlas.texture()));
+
+        builder.setupTextureWalls(wallAtlas.add(this.iceWall));
+        this.meshes.push(builder.constructWall(depths, iceDepths, wallAtlas.texture()));
+
+        builder.color = [1, 1, 1, 0.7];
+        builder.setupTextureSurface(surfaceCoords);
+        this.meshes.push(builder.constructSurface(snowDepths, surfaceAtlas.texture()));
+
+        builder.setupTextureWalls(wallAtlas.add(this.snowWall));
+        this.meshes.push(builder.constructWall(iceDepths, snowDepths, wallAtlas.texture()));
     };
 
     View.prototype.eyePosition = function () {
@@ -117,6 +161,8 @@ var ARCAKE = (function () {
             this.batch = new BLIT.Batch("images/", function() { self.loadBlump(); });
             this.testBlump = this.batch.load("blump.png");
             this.rockWall = this.batch.load("rockwall.jpg");
+            this.iceWall = this.batch.load("icewall.jpg");
+            this.snowWall = this.batch.load("snowwall.jpg");
             this.batch.commit();
         }
         if (!this.batch.loaded) {
