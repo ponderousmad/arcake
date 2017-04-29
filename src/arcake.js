@@ -34,7 +34,13 @@ var ARCAKE = (function () {
 
     View.prototype.loadBlump = function (image) {
         this.atlas = new WGL.TextureAtlas(image.width, image.height / 2, 1);
-        this.meshes.push(BLUMP.imageToMesh(image, 0.0006, this.atlas, false));
+        var parameters = {
+            pixelSize: 0.01,
+            alignX: 0.5,
+            alignY: 0.5,
+            useCalibration: false
+        };
+        this.meshes.push(BLUMP.imageToMesh(image, this.atlas, parameters));
     };
 
     View.prototype.render = function (room, width, height) {
@@ -55,8 +61,10 @@ var ARCAKE = (function () {
             };
             
             room.viewer.near = 0.01;
-            room.viewer.far = 10;
+            room.viewer.far = 50;
             room.gl.enable(room.gl.CULL_FACE);
+            room.gl.blendFunc(room.gl.SRC_ALPHA, room.gl.ONE_MINUS_SRC_ALPHA);
+            room.gl.enable(room.gl.BLEND);
             this.batch = new BLIT.Batch("images/");
             this.batch.load("blump.png", function(image) {
                  self.loadBlump(image);
@@ -67,11 +75,11 @@ var ARCAKE = (function () {
             return;
         }
         if (room.viewer.showOnPrimary()) {
-            var d = 0.2,
+            var d = 2,
                 x = Math.cos(this.angle) * d,
                 z = Math.sin(this.angle) * d,
-                h = 0.05;
-            room.viewer.positionView(new R3.V(x, h, z), new R3.V(0, h, 0), new R3.V(0, 1, 0));
+                h = 2;
+            room.viewer.positionView(new R3.V(x, z, h), new R3.V(0, 0, -1), new R3.V(0, 0, 1));
             room.setupView(this.program, this.viewport);
             this.drawMeshes(room);
         }
