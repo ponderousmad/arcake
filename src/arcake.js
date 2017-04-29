@@ -72,11 +72,17 @@ var ARCAKE = (function () {
         }
     };
 
-    View.prototype.loadBlump = function (image) {
-        var atlas = new WGL.TextureAtlas(image.width, image.height / 2, 1),
-            builder = BLUMP.setupForPaired(image, 0.01, atlas),
+    View.prototype.loadBlump = function () {
+        var image = this.testBlump,
+            surfaceAtlas = new WGL.TextureAtlas(image.width, image.height / 2, 1),
+            builder = BLUMP.setupForPaired(image, 0.01, surfaceAtlas),
             depths = builder.depthFromPaired(image, false);
-        this.meshes.push(builder.constructSurface(depths, atlas.texture()));
+        this.meshes.push(builder.constructSurface(depths, surfaceAtlas.texture()));
+
+        var wallAtlas = new WGL.TextureAtlas(this.rockWall.width, this.rockWall.height, 1);
+        builder.defaultBottom = -1;
+        builder.setupTextureWalls(wallAtlas.add(this.rockWall));
+        this.meshes.push(builder.constructWall(null, depths, wallAtlas.texture()));
     };
 
     View.prototype.eyePosition = function () {
@@ -108,10 +114,9 @@ var ARCAKE = (function () {
             room.gl.enable(room.gl.CULL_FACE);
             room.gl.blendFunc(room.gl.SRC_ALPHA, room.gl.ONE_MINUS_SRC_ALPHA);
             room.gl.enable(room.gl.BLEND);
-            this.batch = new BLIT.Batch("images/");
-            this.batch.load("blump.png", function(image) {
-                 self.loadBlump(image);
-            });
+            this.batch = new BLIT.Batch("images/", function() { self.loadBlump(); });
+            this.testBlump = this.batch.load("blump.png");
+            this.rockWall = this.batch.load("rockwall.jpg");
             this.batch.commit();
         }
         if (!this.batch.loaded) {
