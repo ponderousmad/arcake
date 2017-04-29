@@ -12,16 +12,56 @@ var ARCAKE = (function () {
         this.meshes = [];
         this.program = null;
         this.angle = 0;
+        this.distance = 2;
+        this.eyeHeight = 2;
+        this.targetHeight = -1;
         this.viewport = viewport ? viewport : "canvas";
         this.room = null;
+        this.prevSpot = null;
+        this.up = new R3.V(0, 0, 1);
     }
 
     View.prototype.setRoom = function (room) {
         this.room = room;
     };
 
+    function normalizeAngleRadians(angle) {
+        var fullCircle = Math.PI * 2;
+        while(angle < 0) {
+            angle += fullCircle;
+        }
+        while (angle > fullCircle) {
+            angle -= fullCircle;
+        }
+        return angle;
+    }
+
+    View.prototype.stabPos = function(spot) {
+        var stabDir = this.room.stabDirection(spot.x, spot.y, this.viewport),
+            eyePos = this.eyePosition();
+        return R3.subVectors(eyePos, stabDir.scaled(eyePos.z / stabDir.z));
+    };
+
     View.prototype.update = function (now, elapsed, keyboard, pointer) {
-        this.angle += elapsed * Math.PI * 0.0001;
+        if (pointer.primary) {
+            if (this.prevSpot) {
+                var prevStab = this.stabPos(this.prevSpot),
+                    stab = this.stabPos(pointer.primary);
+                var prevAngle = normalizeAngleRadians(Math.atan2(prevStab.y, prevStab.x)),
+                    newAngle = normalizeAngleRadians(Math.atan2(stab.y, stab.x)),
+                    angleDelta = newAngle - prevAngle;
+                this.angle -= angleDelta;
+            }
+            this.prevSpot = pointer.primary;
+        } else {
+            this.prevSpot = null;
+            this.angle += elapsed * Math.PI * 0.0001;
+        }
+
+        if (pointer.wheelY) {
+            var WHEEL_BASE = 20;
+            this.distance *= (WHEEL_BASE + pointer.wheelY) / WHEEL_BASE;
+        }
     };
 
     View.prototype.drawMeshes = function (room) {
@@ -41,6 +81,13 @@ var ARCAKE = (function () {
             useCalibration: false
         };
         this.meshes.push(BLUMP.imageToMesh(image, this.atlas, parameters));
+    };
+
+    View.prototype.eyePosition = function () {
+        var d = this.distance,
+            x = Math.cos(this.angle) * d,
+            y = Math.sin(this.angle) * d;
+        return new R3.V(x, y, this.eyeHeight);
     };
 
     View.prototype.render = function (room, width, height) {
@@ -75,11 +122,11 @@ var ARCAKE = (function () {
             return;
         }
         if (room.viewer.showOnPrimary()) {
-            var d = 2,
-                x = Math.cos(this.angle) * d,
-                z = Math.sin(this.angle) * d,
-                h = 2;
-            room.viewer.positionView(new R3.V(x, z, h), new R3.V(0, 0, -1), new R3.V(0, 0, 1));
+            room.viewer.positionView(
+                this.eyePosition(),
+                new R3.V(0, 0, this.targetHeight),
+                this.up
+            );
             room.setupView(this.program, this.viewport);
             this.drawMeshes(room);
         }
