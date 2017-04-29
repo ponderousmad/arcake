@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <title>Arcake</title>
+        <link href="style.css" rel="stylesheet">
+        <script type="text/javascript" src="blitblort/src/test.js"></script>
+        <script type="text/javascript" src="blitblort/src/blit.js"></script>
+        <script type="text/javascript" src="blitblort/src/tick.js"></script>
+        <script type="text/javascript" src="blitblort/src/blort.js"></script>
+        <script type="text/javascript" src="blitblort/src/io.js"></script>
+        <script type="text/javascript" src="blitblort/src/entropy.js"></script>
+        <script type="text/javascript" src="blitblort/src/r2.js"></script>
+        <script type="text/javascript" src="blitblort/src/r3.js"></script>
+        <script type="text/javascript" src="blitblort/src/webgl-debug.js"></script>
+        <script type="text/javascript" src="blitblort/src/wgl.js"></script>
+        <script type="text/javascript" src="blitblort/src/improc.js"></script>
+        <script type="text/javascript" src="blitblort/src/blump.js"></script>
+        <script type="text/javascript" src="blitblort/src/main.js"></script>
+    </head>
+    <body>
+        <canvas id="canvas3D" width="400" height="400">
+            Sorry, your browser doesn't support the &lt;canvas&gt; element.
+        </canvas>
+        <div class="controls" id="controls">
+            <div class="menuBorder">
+                <div class="menuToggle">
+                    <a href="javascript:void(0)" id="menuButton"><div class="hamburger"></div></a>
+                </div>
+            </div>
+            <form>
+                <div>
+                    <button id="enterVR" type="button" class="hidden">Enter VR</button>
+                    <button id="exitVR" type="button" class="hidden">Exit VR</button>
+                </div>
+            </form>
+        </div>
+        <script type="text/javascript">
+            window.onload = function(e) {
+                MAIN.start(document.getElementById("canvas3D"), new BLUMP.BlumpTest("safe"));
+                var failed = MAIN.runTestSuites();
+                if (failed === 0) {
+                    console.log("All Tests Passed!");
+                }
+            };
+        </script>
+        <script id="vertex-test" type="x-shader/x-vertex">
+            attribute vec3 aPos;
+            attribute vec3 aNormal;
+            attribute vec2 aUV;
+            attribute vec4 aColor;
+
+            uniform mat4 uMVMatrix;
+            uniform mat4 uNormalMatrix;
+            uniform mat4 uPMatrix;
+
+            varying highp vec2 vUV;
+            varying lowp vec4 vColor;
+            varying highp vec3 vLight;
+
+            void main(void) {
+                gl_Position = uPMatrix * uMVMatrix * vec4(aPos, 1.0);
+                vUV = aUV;
+                vColor = aColor;
+
+                highp vec3 ambient = vec3(0.2, 0.2, 0.2);
+                highp vec3 lightColor = vec3(1.0, 1.0, 1.0);
+                highp vec3 lightDirection = vec3(0.2, 0.1, 0.974679);
+
+                highp vec3 worldNormal = normalize((uNormalMatrix * vec4(aNormal, 1.0)).xyz);
+                highp float lighting = max(dot(worldNormal.xyz, lightDirection), 0.0);
+                vLight = ambient + (lighting * lightColor);
+            }
+        </script>
+        <script id="fragment-test" type="x-shader/x-fragment">
+            varying highp vec2 vUV;
+            varying highp vec3 vLight;
+            varying lowp vec4 vColor;
+            uniform sampler2D uSampler;
+            void main(void) {
+                mediump vec4 texel = texture2D(uSampler, vec2(vUV.s, vUV.t)) * vColor;
+                gl_FragColor = vec4(texel.rgb * vLight, vColor.a);
+            }
+        </script>
+    </body>
+</html>
