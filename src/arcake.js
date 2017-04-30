@@ -13,6 +13,7 @@ var ARCAKE = (function () {
         this.program = null;
         this.angle = Math.PI * 0.15;
         this.distance = 2.5;
+        this.eyeHeights = [0, 5];
         this.eyeHeight = 1;
         this.targetHeight = -0.5;
         this.zoom = 1;
@@ -20,10 +21,51 @@ var ARCAKE = (function () {
         this.room = null;
         this.prevSpot = null;
         this.up = new R3.V(0, 0, 1);
-        this.iceDepth = 0.2;
-        this.snowDepth = 0.1;
+        this.iceData = [0.2, 0.05, 0.15];
+        this.snowData = [0.1, 0.01, 0.15];
+        this.SCALE_MAX = 100.0;
 
         this.loadResources();
+        this.setTime(0);
+    }
+
+    function interpolate(data, fraction) {
+        var p = (data.length - 1) * R2.clamp(fraction, 0, 1),
+            index = Math.floor(p),
+            f = p - index;
+        if (f === 0) {
+            return data[index];
+        }
+        return data[index + 1] * f + data[index] * (1 - f);
+    }
+
+    View.prototype.setTime = function (time) {
+        time = R2.clamp(time, 0, this.SCALE_MAX);
+        if (this.time !== time) {
+            this.time = time;
+            var fraction = this.time / this.SCALE_MAX;
+
+            this.iceDepth = interpolate(this.iceData, fraction);
+            this.snowDepth = interpolate(this.snowData, fraction);
+            if (this.batch.loaded) {
+                this.updateLayers();
+            }
+        }
+    }
+
+    View.prototype.getTime = function () {
+        return this.SCALE_MAX * this.time;
+    }
+
+    View.prototype.setTilt = function (tilt) {
+        tilt = R2.clamp(tilt, 0, this.SCALE_MAX);
+        this.eyeHeight = interpolate(this.eyeHeights, tilt / this.SCALE_MAX);
+
+    }
+
+    View.prototype.getTilt = function () {
+        var minEye = this.eyeHeights[0];
+        return this.SCALE_MAX * (this.eyeHeight - minEye) / (this.eyeHeights[1] - minEye);
     }
 
     View.prototype.loadResources = function () {
@@ -40,17 +82,6 @@ var ARCAKE = (function () {
         this.room = room;
     };
 
-    function normalizeAngleRadians(angle) {
-        var fullCircle = Math.PI * 2;
-        while(angle < 0) {
-            angle += fullCircle;
-        }
-        while (angle > fullCircle) {
-            angle -= fullCircle;
-        }
-        return angle;
-    }
-
     View.prototype.stabPos = function(spot) {
         var stabDir = this.room.stabDirection(spot.x, spot.y, this.viewport),
             eyePos = this.eyePosition();
@@ -62,12 +93,10 @@ var ARCAKE = (function () {
             if (this.prevSpot) {
                 var prevStab = this.stabPos(this.prevSpot),
                     stab = this.stabPos(pointer.primary);
-                var prevAngle = normalizeAngleRadians(Math.atan2(prevStab.y, prevStab.x)),
-                    newAngle = normalizeAngleRadians(Math.atan2(stab.y, stab.x)),
+                var prevAngle = R2.clampAngle(Math.atan2(prevStab.y, prevStab.x)),
+                    newAngle = R2.clampAngle(Math.atan2(stab.y, stab.x)),
                     angleDelta = newAngle - prevAngle;
                 this.angle -= angleDelta;
-                this.eyeHeight += pointer.primary.deltaY * 0.01 * this.zoom;
-                this.eyeHeight = Math.min(5, Math.max(0, this.eyeHeight));
             }
             this.prevSpot = pointer.primary;
         } else {
@@ -77,12 +106,6 @@ var ARCAKE = (function () {
         if (pointer.wheelY) {
             var WHEEL_BASE = 20;
             this.zoom *= (WHEEL_BASE + pointer.wheelY) / WHEEL_BASE;
-        }
-
-        this.iceDepth = Math.max(0.001, this.iceDepth - elapsed * 0.00001);
-        this.snowDepth = Math.max(0.001, this.snowDepth - elapsed * 0.000005);
-        if (this.batch.loaded) {
-            this.updateLayers();
         }
     };
 
@@ -232,29 +255,44 @@ var ARCAKE = (function () {
         }
     };
 
-    window.onload = function(e) {
+    var arcake = {};
+
+    arcake.start = function(timeSlider, tiltSlider) {
         var canvas = document.getElementById("canvas3D"),
             view = new View("safe"),
             controls = document.getElementById("controls"),
             menuButton = document.getElementById("menuButton"),
             controlsVisible = false;
 
-        canvas.tabIndex = 1000; // Hack to get canvas to accept keyboard input.
         view.inputElement = canvas;
 
         var room = MAIN.start(canvas, view);
         view.setRoom(room);
 
-        menuButton.addEventListener("click", function(e) {
-            controlsVisible = !controlsVisible;
-            var slide = controlsVisible ? " slideIn" : "";
-            controls.className = "controls" + slide;
-            e.preventDefault = true;
-            return false;
-        });
+        if (timeSlider) {
+            timeSlider.value = view.getTime();
+            timeSlider.addEventListener("input", function(e) {
+                view.setTime(parseFloat(timeSlider.value));
+            }, false);
+        }
+        if (tiltSlider) {
+            tiltSlider.value = view.getTilt();
+            tiltSlider.addEventListener("input", function(e) {
+                view.setTilt(parseFloat(tiltSlider.value));
+            }, false);
+        }
+
+        if (menuButton) {
+            menuButton.addEventListener("click", function(e) {
+                controlsVisible = !controlsVisible;
+                var slide = controlsVisible ? " slideIn" : "";
+                controls.className = "controls" + slide;
+                e.preventDefault = true;
+                return false;
+            });
+        }
         MAIN.runTestSuites();
     };
 
-    return {
-    };
+    return arcake;
 }());

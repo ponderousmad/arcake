@@ -31,11 +31,27 @@
             </div>
             <form>
                 <div>
+                    <div class="slider">
+                        <div>Time:</div>
+                        <input class="rangeSlider" id="arcake_time" type="range" min="0.0" max="100" step="0.01" value="0">
+                    </div>
+                    <div class="slider">
+                        <div>Tilt:</div>
+                        <input class="rangeSlider" id="arcake_tilt" type="range" min="0.0" max="100" step="0.01" value="0">
+                    </div>
                     <button id="enterVR" type="button" class="hidden">Enter VR</button>
                     <button id="exitVR" type="button" class="hidden">Exit VR</button>
                 </div>
             </form>
         </div>
+        <script type="text/javascript">
+            window.onload = function(e) {
+                ARCAKE.start(
+                    document.getElementById("arcake_time"),
+                    document.getElementById("arcake_tilt")
+                );
+            };
+        </script>
         <script id="vertex-test" type="x-shader/x-vertex">
             attribute vec3 aPos;
             attribute vec3 aNormal;
