@@ -15,6 +15,7 @@ var ARCAKE = (function () {
         this.distance = 2.5;
         this.eyeHeight = 1;
         this.targetHeight = -0.5;
+        this.zoom = 1;
         this.viewport = viewport ? viewport : "canvas";
         this.room = null;
         this.prevSpot = null;
@@ -65,16 +66,17 @@ var ARCAKE = (function () {
                     newAngle = normalizeAngleRadians(Math.atan2(stab.y, stab.x)),
                     angleDelta = newAngle - prevAngle;
                 this.angle -= angleDelta;
+                this.eyeHeight += pointer.primary.deltaY * 0.01 * this.zoom;
+                this.eyeHeight = Math.min(5, Math.max(0, this.eyeHeight));
             }
             this.prevSpot = pointer.primary;
         } else {
             this.prevSpot = null;
-            //this.angle += elapsed * Math.PI * 0.0001;
         }
 
         if (pointer.wheelY) {
             var WHEEL_BASE = 20;
-            this.distance *= (WHEEL_BASE + pointer.wheelY) / WHEEL_BASE;
+            this.zoom *= (WHEEL_BASE + pointer.wheelY) / WHEEL_BASE;
         }
 
         this.iceDepth = Math.max(0.001, this.iceDepth - elapsed * 0.00001);
@@ -188,10 +190,10 @@ var ARCAKE = (function () {
     };
 
     View.prototype.eyePosition = function () {
-        var d = this.distance,
+        var d = this.distance * this.zoom,
             x = Math.cos(this.angle) * d,
             y = Math.sin(this.angle) * d;
-        return new R3.V(x, y, this.eyeHeight);
+        return new R3.V(x, y, this.eyeHeight * this.zoom);
     };
 
     View.prototype.render = function (room, width, height) {
@@ -222,7 +224,7 @@ var ARCAKE = (function () {
         if (room.viewer.showOnPrimary()) {
             room.viewer.positionView(
                 this.eyePosition(),
-                new R3.V(0, 0, this.targetHeight),
+                new R3.V(0, 0, this.targetHeight * this.zoom),
                 this.up
             );
             room.setupView(this.program, this.viewport);
