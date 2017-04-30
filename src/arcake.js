@@ -11,7 +11,7 @@ var ARCAKE = (function () {
         this.vrToggleIDs = { enter: "enterVR", exit: "exitVR" };
         this.meshes = [];
         this.program = null;
-        this.angle = 0;
+        this.angle = Math.PI * 0.15;
         this.distance = 2.5;
         this.eyeHeight = 1;
         this.targetHeight = -0.5;
@@ -19,6 +19,20 @@ var ARCAKE = (function () {
         this.room = null;
         this.prevSpot = null;
         this.up = new R3.V(0, 0, 1);
+        this.iceDepth = 0.2;
+        this.snowDepth = 0.1;
+
+        this.loadResources();
+    }
+
+    View.prototype.loadResources = function () {
+        var self = this;
+        this.batch = new BLIT.Batch("images/", function() { self.loadBlump(); });
+        this.testBlump = this.batch.load("blump.png");
+        this.rockTexture = this.batch.load("rockwall.jpg");
+        this.iceTexture = this.batch.load("icewall.jpg");
+        this.snowTexture = this.batch.load("snowwall.jpg");
+        this.batch.commit();
     }
 
     View.prototype.setRoom = function (room) {
@@ -55,12 +69,18 @@ var ARCAKE = (function () {
             this.prevSpot = pointer.primary;
         } else {
             this.prevSpot = null;
-            this.angle += elapsed * Math.PI * 0.0001;
+            //this.angle += elapsed * Math.PI * 0.0001;
         }
 
         if (pointer.wheelY) {
             var WHEEL_BASE = 20;
             this.distance *= (WHEEL_BASE + pointer.wheelY) / WHEEL_BASE;
+        }
+
+        this.iceDepth = Math.max(0.001, this.iceDepth - elapsed * 0.00001);
+        this.snowDepth = Math.max(0.001, this.snowDepth - elapsed * 0.000005);
+        if (this.batch.loaded) {
+            this.updateLayers();
         }
     };
 
@@ -72,11 +92,16 @@ var ARCAKE = (function () {
         }
     };
 
-    function addLayer(base, thickness, width, height, smoothing) {
-        var depths = new Float32Array(width * height),
-            sum = 0,
+    View.prototype.winterize = function (base, thickness, smoothing, depths) {
+        var sum = 0,
             min = Number.POSITIVE_INFINITY,
-            max = Number.NEGATIVE_INFINITY;
+            max = Number.NEGATIVE_INFINITY,
+            width = this.builder.width,
+            height = this.builder.height;
+
+        if (!depths) {
+            depths = new Float32Array(width * height);
+        }
 
         base.forEach(function(v) {
             sum += v;
@@ -100,33 +125,66 @@ var ARCAKE = (function () {
 
     View.prototype.loadBlump = function () {
         var image = this.testBlump,
-            builder = BLUMP.setupForPaired(image, 0.01),
-            depths = builder.depthFromPaired(image, false),
-            iceDepths = addLayer(depths, 0.2, builder.width, builder.height, 2),
-            snowDepths = addLayer(iceDepths, 0.1, builder.width, builder.height, 5),
-            surfaceAtlas = new WGL.TextureAtlas(image.width, image.height / 2, 1),
-            surfaceCoords = surfaceAtlas.add(image, 0, 0, builder.width, builder.height);
-        builder.setupTextureSurface(surfaceCoords);
-        this.meshes.push(builder.constructSurface(depths, surfaceAtlas.texture()));
+            builder = BLUMP.setupForPaired(image, 0.01);
+        this.builder = builder;
+        this.depths = builder.depthFromPaired(image, false);
+        this.surfaceAtlas = new WGL.TextureAtlas(image.width, image.height / 2, 1);
+        this.wallAtlas = new WGL.TextureAtlas(this.rockTexture.width, this.rockTexture.height, 1);
+        this.surfaceCoords = this.surfaceAtlas.add(image, 0, 0, builder.width, builder.height);
+        this.rockCoords = this.wallAtlas.add(this.rockTexture);
+        this.iceCoords = this.wallAtlas.add(this.iceTexture);
+        this.snowCoords = this.wallAtlas.add(this.snowTexture);
 
-        var wallAtlas = new WGL.TextureAtlas(this.rockWall.width, this.rockWall.height, 1);
+        this.buildGeometry();
+    }
+
+    View.prototype.letItSnow = function () {
+        this.iceDepths = this.winterize(this.depths, this.iceDepth, 2, this.iceDepths);
+        this.snowDepths = this.winterize(this.iceDepths, this.snowDepth, 5, this.snowDepths);
+    };
+
+    View.prototype.buildGeometry = function () {
+        var builder = this.builder;
+        this.meshes = [];
+
+        this.letItSnow();
+
+        builder.setupTextureSurface(this.surfaceCoords);
+        this.meshes.push(builder.constructSurface(this.depths, this.surfaceAtlas.texture()));
+
         builder.defaultBottom = -0.5;
-        builder.setupTextureWalls(wallAtlas.add(this.rockWall));
-        this.meshes.push(builder.constructWall(null, depths, wallAtlas.texture()));
+        builder.setupTextureWalls(this.rockCoords);
+        this.meshes.push(builder.constructWall(null, this.depths, this.wallAtlas.texture()));
 
         builder.color = [1, 1, 1, 0.8];
-        builder.setupTextureSurface(surfaceCoords);
-        this.meshes.push(builder.constructSurface(iceDepths, surfaceAtlas.texture()));
+        builder.setupTextureSurface(this.surfaceCoords);
+        this.iceSurface = builder.constructSurface(this.iceDepths, this.surfaceAtlas.texture());
+        this.iceSurface.dynamic = true;
+        this.meshes.push(this.iceSurface);
 
-        builder.setupTextureWalls(wallAtlas.add(this.iceWall));
-        this.meshes.push(builder.constructWall(depths, iceDepths, wallAtlas.texture()));
+        builder.setupTextureWalls(this.iceCoords);
+        this.iceWall = builder.constructWall(this.depths, this.iceDepths, this.wallAtlas.texture());
+        this.iceWall.dynamic = true;
+        this.meshes.push(this.iceWall);
 
         builder.color = [1, 1, 1, 0.7];
-        builder.setupTextureSurface(surfaceCoords);
-        this.meshes.push(builder.constructSurface(snowDepths, surfaceAtlas.texture()));
+        builder.setupTextureSurface(this.surfaceCoords);
+        this.snowSurface = builder.constructSurface(this.snowDepths, this.surfaceAtlas.texture());
+        this.snowSurface.dynamic = true;
+        this.meshes.push(this.snowSurface);
 
-        builder.setupTextureWalls(wallAtlas.add(this.snowWall));
-        this.meshes.push(builder.constructWall(iceDepths, snowDepths, wallAtlas.texture()));
+        builder.setupTextureWalls(this.snowCoords);
+        this.snowWall = builder.constructWall(this.iceDepths, this.snowDepths, this.wallAtlas.texture());
+        this.snowWall.dynamic = true;
+        this.meshes.push(this.snowWall);
+    };
+
+    View.prototype.updateLayers = function() {
+        this.letItSnow();
+        this.builder.updateSurface(this.iceSurface, this.iceDepths);
+        this.builder.updateSurface(this.snowSurface, this.snowDepths);
+        this.builder.updateWall(this.iceWall, this.depths, this.iceDepths);
+        this.builder.updateWall(this.snowWall, this.iceDepths, this.snowDepths);
     };
 
     View.prototype.eyePosition = function () {
@@ -139,8 +197,7 @@ var ARCAKE = (function () {
     View.prototype.render = function (room, width, height) {
         room.clear(this.clearColor);
         if (this.program === null) {
-            var shader = room.programFromElements("vertex-test", "fragment-test"),
-                self = this;
+            var shader = room.programFromElements("vertex-test", "fragment-test");
             this.program = {
                 shader: shader,
                 mvUniform: "uMVMatrix",
@@ -152,18 +209,12 @@ var ARCAKE = (function () {
                 vertexColor: room.bindVertexAttribute(shader, "aColor"),
                 textureVariable: "uSampler"
             };
-            
+
             room.viewer.near = 0.01;
             room.viewer.far = 50;
             room.gl.enable(room.gl.CULL_FACE);
             room.gl.blendFunc(room.gl.SRC_ALPHA, room.gl.ONE_MINUS_SRC_ALPHA);
             room.gl.enable(room.gl.BLEND);
-            this.batch = new BLIT.Batch("images/", function() { self.loadBlump(); });
-            this.testBlump = this.batch.load("blump.png");
-            this.rockWall = this.batch.load("rockwall.jpg");
-            this.iceWall = this.batch.load("icewall.jpg");
-            this.snowWall = this.batch.load("snowwall.jpg");
-            this.batch.commit();
         }
         if (!this.batch.loaded) {
             return;
