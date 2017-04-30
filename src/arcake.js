@@ -84,7 +84,7 @@ var ARCAKE = (function () {
             max = Math.max(v, max);
         });
         var average = sum / base.length,
-            slackFactor =  smoothing / (max - min);
+            slackFactor =  smoothing * (max - min);
 
         for (var y = 0; y < height; ++y) {
             for (var x = 0; x < width; ++x) {
@@ -102,8 +102,8 @@ var ARCAKE = (function () {
         var image = this.testBlump,
             builder = BLUMP.setupForPaired(image, 0.01),
             depths = builder.depthFromPaired(image, false),
-            iceDepths = addLayer(depths, 0.2, builder.width, builder.height, 0.1),
-            snowDepths = addLayer(iceDepths, 0.1, builder.width, builder.height, 0.2),
+            iceDepths = addLayer(depths, 0.2, builder.width, builder.height, 2),
+            snowDepths = addLayer(iceDepths, 0.1, builder.width, builder.height, 5),
             surfaceAtlas = new WGL.TextureAtlas(image.width, image.height / 2, 1),
             surfaceCoords = surfaceAtlas.add(image, 0, 0, builder.width, builder.height);
         builder.setupTextureSurface(surfaceCoords);
