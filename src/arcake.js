@@ -78,7 +78,7 @@ var ARCAKE = (function () {
         this.batch.commit();
     }
 
-    View.prototype.setRoom = function (room) {
+    View.prototype.setupRoom = function (room) {
         this.room = room;
     };
 
@@ -150,12 +150,15 @@ var ARCAKE = (function () {
 
     View.prototype.loadBlump = function () {
         var image = this.testBlump,
-            builder = BLUMP.setupForPaired(image, 0.01);
+            width = image.width,
+            height = image.height / 2,
+            builder = new BLUMP.Builder("flat", width, height, 0.01, true);
+
         this.builder = builder;
-        this.depths = builder.depthFromPaired(image, false);
-        this.surfaceAtlas = new WGL.TextureAtlas(image.width, image.height / 2, 1);
+        this.depths = builder.extractDepth(image, false, 0.15);
+        this.surfaceAtlas = new WGL.TextureAtlas(width, height, 1);
         this.wallAtlas = new WGL.TextureAtlas(this.rockTexture.width, this.rockTexture.height, 1);
-        this.surfaceCoords = this.surfaceAtlas.add(image, 0, 0, builder.width, builder.height);
+        this.surfaceCoords = this.surfaceAtlas.add(image, 0, 0, width, height);
         this.rockCoords = this.wallAtlas.add(this.rockTexture);
         this.iceCoords = this.wallAtlas.add(this.iceTexture);
         this.snowCoords = this.wallAtlas.add(this.snowTexture);
@@ -222,18 +225,7 @@ var ARCAKE = (function () {
     View.prototype.render = function (room, width, height) {
         room.clear(this.clearColor);
         if (this.program === null) {
-            var shader = room.programFromElements("vertex-test", "fragment-test");
-            this.program = {
-                shader: shader,
-                mvUniform: "uMVMatrix",
-                perspectiveUniform: "uPMatrix",
-                normalUniform: "uNormalMatrix",
-                vertexPosition: room.bindVertexAttribute(shader, "aPos"),
-                vertexNormal: room.bindVertexAttribute(shader, "aNormal"),
-                vertexUV: room.bindVertexAttribute(shader, "aUV"),
-                vertexColor: room.bindVertexAttribute(shader, "aColor"),
-                textureVariable: "uSampler"
-            };
+            this.program = room.programFromElements("vertex-test", "fragment-test", true, true, true);
 
             room.viewer.near = 0.01;
             room.viewer.far = 50;
@@ -266,8 +258,7 @@ var ARCAKE = (function () {
 
         view.inputElement = canvas;
 
-        var room = MAIN.start(canvas, view);
-        view.setRoom(room);
+        MAIN.start(canvas, view);
 
         if (timeSlider) {
             timeSlider.value = view.getTime();
